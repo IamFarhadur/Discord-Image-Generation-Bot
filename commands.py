@@ -2,7 +2,8 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import urllib.parse
-import aiohttp
+import requests
+import asyncio
 
 class ImageCommands(commands.Cog):
     def __init__(self, bot):
@@ -46,34 +47,35 @@ class ImageCommands(commands.Cog):
         await interaction.followup.send(embed=loading_embed)
         
         try:
-            # Test if the image URL is accessible
-            async with aiohttp.ClientSession() as session:
-                async with session.get(image_url) as response:
-                    if response.status == 200:
-                        # Create success embed
-                        success_embed = discord.Embed(
-                            title="✨ Image Generated!",
-                            description=f"**Prompt:** {clean_prompt}",
-                            color=0x00FF00
-                        )
-                        success_embed.set_image(url=image_url)
-                        success_embed.set_footer(text="©️ 2025 Hinata. All rights reserved")
-                        
-                        await interaction.edit_original_response(embed=success_embed)
-                        
-                        # Log successful image generation
-                        if self.bot.discord_logger:
-                            await self.bot.discord_logger.log_image_generation(
-                                interaction.user, interaction.guild, interaction.channel, clean_prompt, True
-                            )
-                    else:
-                        raise Exception(f"HTTP {response.status}")
+            # Use requests for synchronous HTTP call, run in executor to avoid blocking
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(None, lambda: requests.get(image_url, stream=True))
+            
+            if response.status_code == 200:
+                # Create success embed
+                success_embed = discord.Embed(
+                    title="✨ Image Generated!",
+                    description=f"**Prompt:** {clean_prompt}",
+                    color=0x00FF00
+                )
+                success_embed.set_image(url=image_url)
+                success_embed.set_footer(text="©️ 2025 Hinata. All rights reserved")
+                
+                await interaction.edit_original_response(embed=success_embed)
+                
+                # Log successful image generation
+                if self.bot.discord_logger:
+                    await self.bot.discord_logger.log_image_generation(
+                        interaction.user, interaction.guild, interaction.channel, clean_prompt, True
+                    )
+            else:
+                raise Exception(f"HTTP {response.status_code}")
                         
         except Exception as e:
             # Create error embed
             error_embed = discord.Embed(
                 title="❌ Generation Failed",
-                description=f"Sorry, I couldn't generate an image for: **{clean_prompt}**\n\n"
+                description=f"Sorry, I couldn\'t generate an image for: **{clean_prompt}**\n\n"
                            "Please try again with a different prompt.",
                 color=0xFF0000
             )
@@ -117,13 +119,15 @@ class ImageCommands(commands.Cog):
         
         embed = discord.Embed(
             title="🌸 Hinata - AI Assistant Bot",
-            description="I can generate images and chat with you using AI!",
+            description="I can generate images, videos, and chat with you using AI!",
             color=0x7289DA
         )
         
         embed.add_field(
             name="📝 Slash Commands",
             value="`/generate <prompt>` - Generate an image\n"
+                  "`/imgen <prompt>` - Advanced image generation\n"
+                  "`/vidgen <prompt>` - Video generation (Premium)\n"
                   "`/activate` - Activate chat mode in this channel\n"
                   "`/deactivate` - Deactivate chat mode\n"
                   "`/help` - Show this help message",
@@ -135,6 +139,8 @@ class ImageCommands(commands.Cog):
             value=f"`{ctx.prefix}generate <prompt>` - Generate an image\n"
                   f"`{ctx.prefix}gen <prompt>` - Generate an image (short)\n"
                   f"`{ctx.prefix}img <prompt>` - Generate an image (alias)\n"
+                  f"`{ctx.prefix}imgen <prompt>` - Advanced image generation\n"
+                  f"`{ctx.prefix}vidgen <prompt>` - Video generation (Premium)\n"
                   f"`{ctx.prefix}activate` - Activate chat mode\n"
                   f"`{ctx.prefix}deactivate` - Deactivate chat mode\n"
                   f"`{ctx.prefix}status` - Check channel status\n"
@@ -151,11 +157,16 @@ class ImageCommands(commands.Cog):
         )
         
         embed.add_field(
-            name="📖 Image Examples",
-            value="• `a beautiful sunset over mountains`\n"
-                  "• `a cute robot playing with cats`\n"
-                  "• `cyberpunk city at night, neon lights`\n"
-                  "• `watercolor painting of a forest`",
+            name="📖 Generation Examples",
+            value="**Basic Images:**\n"
+                  "• `a beautiful sunset over mountains`\n"
+                  "• `a cute robot playing with cats`\n\n"
+                  "**Advanced Images:**\n"
+                  "• `photorealistic portrait of a wizard`\n"
+                  "• `cyberpunk city at night, neon lights`\n\n"
+                  "**Videos (Premium):**\n"
+                  "• `a cat chasing a butterfly in a garden`\n"
+                  "• `waves crashing on a rocky shore`",
             inline=False
         )
         
@@ -171,13 +182,15 @@ class ImageCommands(commands.Cog):
         
         embed = discord.Embed(
             title="🌸 Hinata - AI Assistant Bot",
-            description="I can generate images and chat with you using AI!",
+            description="I can generate images, videos, and chat with you using AI!",
             color=0x7289DA
         )
         
         embed.add_field(
             name="📝 Slash Commands",
             value="`/generate <prompt>` - Generate an image\n"
+                  "`/imgen <prompt>` - Advanced image generation\n"
+                  "`/vidgen <prompt>` - Video generation (Premium)\n"
                   "`/activate` - Activate chat mode in this channel\n"
                   "`/deactivate` - Deactivate chat mode\n"
                   "`/help` - Show this help message",
@@ -189,6 +202,8 @@ class ImageCommands(commands.Cog):
             value=f"`%generate <prompt>` - Generate an image\n"
                   f"`%gen <prompt>` - Generate an image (short)\n"
                   f"`%img <prompt>` - Generate an image (alias)\n"
+                  f"`%imgen <prompt>` - Advanced image generation\n"
+                  f"`%vidgen <prompt>` - Video generation (Premium)\n"
                   f"`%activate` - Activate chat mode\n"
                   f"`%deactivate` - Deactivate chat mode\n"
                   f"`%status` - Check channel status\n"
@@ -205,11 +220,16 @@ class ImageCommands(commands.Cog):
         )
         
         embed.add_field(
-            name="📖 Image Examples",
-            value="• `a beautiful sunset over mountains`\n"
-                  "• `a cute robot playing with cats`\n"
-                  "• `cyberpunk city at night, neon lights`\n"
-                  "• `watercolor painting of a forest`",
+            name="📖 Generation Examples",
+            value="**Basic Images:**\n"
+                  "• `a beautiful sunset over mountains`\n"
+                  "• `a cute robot playing with cats`\n\n"
+                  "**Advanced Images:**\n"
+                  "• `photorealistic portrait of a wizard`\n"
+                  "• `cyberpunk city at night, neon lights`\n\n"
+                  "**Videos (Premium):**\n"
+                  "• `a cat chasing a butterfly in a garden`\n"
+                  "• `waves crashing on a rocky shore`",
             inline=False
         )
         

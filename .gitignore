@@ -1,2 +1,4 @@
 .env
 test_api.py
+test_advanced_generation.py
+test_openrouter.py

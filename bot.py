@@ -2,7 +2,6 @@ import discord
 from discord.ext import commands
 import os
 import asyncio
-import aiohttp
 import requests
 from dotenv import load_dotenv
 import urllib.parse
@@ -11,8 +10,8 @@ import urllib.parse
 load_dotenv()
 
 # Bot configuration
-TOKEN = os.getenv('DISCORD_TOKEN')
-PREFIX = os.getenv('COMMAND_PREFIX', '%')
+TOKEN = os.getenv("DISCORD_TOKEN")
+PREFIX = os.getenv("COMMAND_PREFIX", "%")
 
 # Bot intents
 intents = discord.Intents.default()
@@ -36,28 +35,35 @@ class HinataBot(commands.Bot):
         
         # Load logger extension first
         try:
-            await self.load_extension('logger')
+            await self.load_extension("logger")
             print("Loaded logger extension")
         except Exception as e:
             print(f"Failed to load logger: {e}")
         
         # Load commands cog
         try:
-            await self.load_extension('commands')
+            await self.load_extension("commands")
             print("Loaded commands extension")
         except Exception as e:
             print(f"Failed to load commands: {e}")
         
         # Load chat cog
         try:
-            await self.load_extension('chat')
+            await self.load_extension("chat")
             print("Loaded chat extension")
             # Get chat manager reference
-            chat_cog = self.get_cog('ChatCommands')
+            chat_cog = self.get_cog("ChatCommands")
             if chat_cog:
                 self.chat_manager = chat_cog.chat_manager
         except Exception as e:
             print(f"Failed to load chat: {e}")
+        
+        # Load advanced generation cog
+        try:
+            await self.load_extension("advanced_generation")
+            print("Loaded advanced generation extension")
+        except Exception as e:
+            print(f"Failed to load advanced generation: {e}")
         
         # Sync slash commands
         try:
@@ -68,10 +74,10 @@ class HinataBot(commands.Bot):
 
     async def on_ready(self):
         """Called when the bot is ready"""
-        print(f'{self.user} has awakened! 🌸')
-        print(f'Bot ID: {self.user.id}')
-        print(f'Prefix: {PREFIX}')
-        print('---')
+        print(f"{self.user} has awakened! 🌸")
+        print(f"Bot ID: {self.user.id}")
+        print(f"Prefix: {PREFIX}")
+        print("---")
         
         # Set bot status
         activity = discord.Activity(
@@ -114,7 +120,7 @@ class HinataBot(commands.Bot):
         # Extract the prompt from the message (remove the mention)
         content = message.content
         for mention in message.mentions:
-            content = content.replace(f'<@{mention.id}>', '').replace(f'<@!{mention.id}>', '')
+            content = content.replace(f"<@{mention.id}>", "").replace(f"<@!{mention.id}>", "")
         
         prompt = content.strip()
         
@@ -134,7 +140,7 @@ class HinataBot(commands.Bot):
             return
         
         # Check if this looks like an image generation request
-        image_keywords = ['generate', 'create', 'make', 'draw', 'image', 'picture', 'art', 'painting']
+        image_keywords = ["generate", "create", "make", "draw", "image", "picture", "art", "painting"]
         is_image_request = any(keyword in prompt.lower() for keyword in image_keywords)
         
         if is_image_request or len(prompt.split()) > 10:  # Long prompts are likely image requests
@@ -252,32 +258,33 @@ async def generate_image_from_prompt(ctx_or_message, prompt: str, is_mention: bo
         loading_message = await ctx_or_message.send(embed=loading_embed)
     
     try:
-        # Test if the image URL is accessible
-        async with aiohttp.ClientSession() as session:
-            async with session.get(image_url) as response:
-                if response.status == 200:
-                    # Create success embed
-                    success_embed = discord.Embed(
-                        title="✨ Image Generated!",
-                        description=f"**Prompt:** {clean_prompt}",
-                        color=0x00FF00
-                    )
-                    success_embed.set_image(url=image_url)
-                    success_embed.set_footer(text="©️ 2025 Hinata. All rights reserved")
-                    
-                    await loading_message.edit(embed=success_embed)
-                    
-                    # Log successful image generation
-                    if bot.discord_logger:
-                        user = ctx_or_message.author if hasattr(ctx_or_message, 'author') else ctx_or_message.user
-                        guild = ctx_or_message.guild
-                        channel = ctx_or_message.channel
-                        await bot.discord_logger.log_image_generation(
-                            user, guild, channel, clean_prompt, True
-                        )
-                else:
-                    raise Exception(f"HTTP {response.status}")
-                    
+        # Use requests for synchronous HTTP call, run in executor to avoid blocking
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(None, lambda: requests.get(image_url, stream=True))
+        
+        if response.status_code == 200:
+            # Create success embed
+            success_embed = discord.Embed(
+                title="✨ Image Generated!",
+                description=f"**Prompt:** {clean_prompt}",
+                color=0x00FF00
+            )
+            success_embed.set_image(url=image_url)
+            success_embed.set_footer(text="©️ 2025 Hinata. All rights reserved")
+            
+            await loading_message.edit(embed=success_embed)
+            
+            # Log successful image generation
+            if bot.discord_logger:
+                user = ctx_or_message.author if hasattr(ctx_or_message, "author") else ctx_or_message.user
+                guild = ctx_or_message.guild
+                channel = ctx_or_message.channel
+                await bot.discord_logger.log_image_generation(
+                    user, guild, channel, clean_prompt, True
+                )
+        else:
+            raise Exception(f"HTTP {response.status_code}")
+            
     except Exception as e:
         # Create error embed
         error_embed = discord.Embed(
@@ -292,7 +299,7 @@ async def generate_image_from_prompt(ctx_or_message, prompt: str, is_mention: bo
         
         # Log failed image generation
         if bot.discord_logger:
-            user = ctx_or_message.author if hasattr(ctx_or_message, 'author') else ctx_or_message.user
+            user = ctx_or_message.author if hasattr(ctx_or_message, "author") else ctx_or_message.user
             guild = ctx_or_message.guild
             channel = ctx_or_message.channel
             await bot.discord_logger.log_image_generation(
@@ -314,4 +321,5 @@ if __name__ == "__main__":
         print("❌ Error: Invalid Discord token!")
     except Exception as e:
         print(f"❌ Error starting bot: {e}")
+
 
